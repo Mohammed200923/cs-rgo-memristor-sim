@@ -41,6 +41,4 @@ data/
   simulation_results.csv
 ```
 
-## License
 
-MIT
