@@ -17,7 +17,9 @@ for f in [1, 5, 20]:
     t, v, i, x, R = simulate_iv(freq=f)
     areas.append(compute_loop_area(v, i))
     print(f"  f={f} Hz: area={areas[-1]:.2e}")
-print(f"  Collapse: {areas[0]/areas[-1]:.0f}x (threshold: 10,000x)")
+print(f"  Area ratio 1 Hz / 20 Hz: {areas[0]/areas[-1]:.1f}x")
+if not all(a > b for a, b in zip(areas, areas[1:])):
+    print("  Note: loop area does not decrease monotonically with frequency")
 
 print("\n[2/4] VTEAM loading sweep...")
 phi = np.arange(0, 25, 2)
@@ -25,11 +27,15 @@ vr = sweep_loading(phi)
 pk = max(vr, key=lambda r: r["on_off"])
 print(f"  Peak: phi={pk['phi']} wt%, ON/OFF={pk['on_off']:.0f}")
 
-print("\n[3/4] Drift-diffusion cross-validation...")
+print("\n[3/4] Drift-diffusion cross-check...")
 dr = sweep_loading_physics(phi)
-pk2 = max(dr, key=lambda r: r["on_off"])
-print(f"  Peak: phi={pk2['phi']} wt%")
-print(f"  Agreement: {'YES' if abs(pk['phi']-pk2['phi'])<=4 else 'NO'}")
+dd = [r["on_off"] for r in dr]
+if max(dd) - min(dd) < 1e-6:
+    print(f"  ON/OFF = {dd[0]:.2f} at every loading: no peak, no cross-check")
+else:
+    pk2 = max(dr, key=lambda r: r["on_off"])
+    print(f"  Peak: phi={pk2['phi']} wt%")
+    print(f"  Agreement with map (within 4 wt%): {'YES' if abs(pk['phi']-pk2['phi'])<=4 else 'NO'}")
 
 print("\n[4/4] Synaptic behavior...")
 p, G = simulate_ltp_ltd()
@@ -46,5 +52,8 @@ with open(out, "w") as f:
         f.write(f"{v['phi']},{v['on_off']:.1f},{d['on_off']:.1f}\n")
 print(f"\nSaved: {out}")
 print("\n" + "="*60)
-print(f"OPTIMAL: ~{pk['phi']} wt% | WINDOW: 8-16 wt% | COLLAPSE: >22 wt%")
+after = [r for r in vr if r["phi"] > pk["phi"]]
+drop = next((r["phi"] for r in after if r["on_off"] < 0.1 * pk["on_off"]), None)
+print(f"MAP PEAK: {pk['phi']} wt% (ON/OFF {pk['on_off']:.0f}) | COLLAPSE AT: {drop} wt%")
+print("The peak follows from the assumed percolation threshold (22 wt%) in models/vteam.py")
 print("="*60)
