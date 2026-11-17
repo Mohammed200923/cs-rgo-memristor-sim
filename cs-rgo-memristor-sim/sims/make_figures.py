@@ -95,23 +95,26 @@ with plt.rc_context(POSTER):
     ax.legend(loc="upper left"); ax.grid(True, which="major", alpha=.3)
     fig.tight_layout(); fig.savefig(os.path.join(OUT, "fig8_models.png")); plt.close(fig)
 
-# Fig. 9 - Synaptic curves (phenomenological, parameters set in models/synaptic.py)
+# Fig. 9 - Synaptic target curves (phenomenological; parameters chosen in models/synaptic.py)
 np.random.seed(0)  # multilevel read noise is random; fixed seed for a reproducible figure
-fig, (a, b, c) = plt.subplots(1, 3, figsize=(7.2, 2.5))
-p, G = simulate_ltp_ltd()
-a.plot(p[:30], G[:30], color=BLUE, marker="o", ms=2.5, lw=1.5, label="Potentiation")
-a.plot(p[30:], G[30:], color=ORANGE, marker="o", ms=2.5, lw=1.5, label="Depression")
-a.set_xlabel("Pulse number"); a.set_ylabel("Conductance (µS)"); a.legend(fontsize=7)
-panel(a, "a", "LTP / LTD")
-dt, ppf = simulate_ppf()
-b.plot(dt, ppf, color=BLUE); b.set_xscale("log")
-b.set_xlabel("Pulse interval (ms)"); b.set_ylabel("PPF index (%)"); panel(b, "b", "Paired-pulse")
-states = simulate_multilevel()
-for k, s in enumerate(states):
-    c.plot(np.arange(len(s)), s, color=BLUE, lw=1)
-c.set_xlabel("Read number"); c.set_ylabel("Conductance (a.u.)"); panel(c, "c", "Six set levels")
-fig.tight_layout()
-fig.savefig(os.path.join(OUT, "fig9_synaptic.png")); plt.close(fig)
+with plt.rc_context(POSTER):
+    fig, (a, b, c) = plt.subplots(1, 3, figsize=(10, 4.2))
+    p, G = simulate_ltp_ltd()
+    a.plot(p[:30], G[:30], color=BLUE, marker="o", ms=4, lw=2.4, label="LTP")
+    a.plot(p[30:], G[30:], color=ORANGE, marker="o", ms=4, lw=2.4, label="LTD")
+    a.set_xlabel("Pulse number"); a.set_ylabel("Conductance (µS)"); a.legend(loc="lower center", bbox_to_anchor=(0.42, 0.02), fontsize=14)
+    a.set_title("(a) LTP / LTD", loc="left")
+    dt, ppf = simulate_ppf()
+    b.plot(dt, ppf, color=BLUE, lw=2.6); b.set_xscale("log")
+    b.set_xlabel("Interval (ms)"); b.set_ylabel("PPF index (%)"); b.set_title("(b) Paired-pulse", loc="left")
+    states = simulate_multilevel()
+    for s_ in states:
+        c.plot(np.arange(len(s_)), s_, color=BLUE, lw=1.8)
+    c.set_xlabel("Read number"); c.set_ylabel("Conductance (a.u.)"); c.set_title("(c) Six levels", loc="left")
+    for ax in (a, b, c):
+        ax.grid(True, which="major", alpha=.3)
+    fig.tight_layout(w_pad=1.2)
+    fig.savefig(os.path.join(OUT, "fig9_synaptic.png")); plt.close(fig)
 
 print(f"Single-lobe areas (V·A): " + ", ".join(f"{f} Hz {a_:.2e}" for f, a_ in zip(freqs, areas)))
 fmax = max(fine, key=lambda r: r["on_off"])
