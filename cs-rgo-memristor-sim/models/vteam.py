@@ -1,4 +1,10 @@
-"""VTEAM compact model with CS-rGO parameter mapping."""
+"""Empirical parameter map for CS-rGO: R_on and R_off as functions of rGO loading.
+
+The functional form is VTEAM-style (Kvatinsky et al., 2015), but the time-dependent VTEAM
+switching equations are NOT solved here, so this is an empirical map, not a VTEAM simulation.
+Below the assumed threshold the ON/OFF ratio rises monotonically, so its maximum always sits
+just below phi_c: sample it on a fine grid (FINE_GRID) rather than reading a "peak" off 2 wt% steps.
+"""
 import numpy as np
 
 def csrgo_params(phi_wt):
@@ -15,6 +21,9 @@ def csrgo_params(phi_wt):
     else:
         excess = (phi - phi_c) / (1 - phi_c)
         return max(10, 250*(1-excess)), max(50, 500*(1-excess**0.5)), 1e-12
+
+FINE_GRID = np.round(np.arange(0, 22, 0.1), 1)  # wt%, stops just below phi_c = 22 wt%
+
 
 def sweep_loading(phi_range=None):
     if phi_range is None:

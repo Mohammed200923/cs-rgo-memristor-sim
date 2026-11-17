@@ -8,18 +8,18 @@ Simulation models for printed chitosan-reduced graphene oxide (CS-rGO) memristor
 
 | Output | Value | Notes |
 |--------|-------|-------|
-| ON/OFF ratio, parameter map | 5 at 0 wt% → 315 at 14 wt% → 1,489 at 20 wt% | Rises monotonically up to the assumed threshold |
-| Peak loading, parameter map | 20 wt% | Follows from the assumed percolation threshold of 22 wt% |
+| ON/OFF ratio, parameter map | 5 at 0 wt% → 315 at 14 wt% → 1,489 at 20 wt% → 3,554 at 21.8 wt% | 0.1 wt% grid; in the 10³ range just below the threshold |
+| Maximum, parameter map | Just below 22 wt% (no interior peak) | The ratio rises monotonically, so its maximum sits at the assumed threshold. The old "peak at 20 wt%" came from the 2 wt% grid |
 | Collapse | 2.0 at 22 wt%, 1.7 at 24 wt% | Above the assumed threshold |
 | ON/OFF ratio, drift-diffusion | 1.0 at every loading | No peak, so no independent cross-check yet |
-| Strukov loop area | 4.4e-8 V·A (1 Hz), 3.0e-9 (5 Hz), 6.9e-9 (20 Hz) | Pinched loops; area not monotonic between 5 and 20 Hz |
+| Strukov single-lobe area | 4.2e-5 V·A (1 Hz), 3.1e-6 (5 Hz), 6.9e-7 (20 Hz) | Pinched loops; area falls steadily with frequency. Stable under a 10× finer step |
 | Synaptic curves | LTP 0.82 → 3.73 µS, LTD → 0.31 µS, PPF 169%, 6 levels | Set by the chosen parameters, not predicted by device physics |
 | Switching voltage, endurance | Not calculated | The VTEAM time-dependent equations are not solved yet |
 
 ## Models
 
 1. **Strukov** (`models/strukov.py`) - linear ion-drift model with a Joglekar window; sinusoidal drive, 1 V, 1/5/20 Hz, 2 cycles.
-2. **VTEAM-based parameter map** (`models/vteam.py`) - R_on and R_off set by empirical expressions of φ/φc; ON/OFF = R_off / R_on at each loading.
+2. **Empirical parameter map** (`models/vteam.py`) - R_on and R_off set by VTEAM-style empirical expressions of φ/φc; ON/OFF = R_off / R_on at each loading. The VTEAM switching equations are not solved.
 3. **Drift-diffusion** (`models/drift_diffusion.py`) - 1-D Nernst-Planck solver. The percolation conductivity is computed but does not yet enter the current, so the output does not depend on loading.
 4. **Synaptic** (`models/synaptic.py`) - phenomenological exponential LTP/LTD and paired-pulse curves, plus six preset conductance levels with random read noise.
 
@@ -41,8 +41,8 @@ Simulation models for printed chitosan-reduced graphene oxide (CS-rGO) memristor
 
 ## How the main values are calculated
 
-- **ON/OFF (map):** R_off / R_on at each loading, 0-24 wt% in 2 wt% steps.
-- **Loop area:** |∮ I dV| over the simulated cycles, trapezoidal rule.
+- **ON/OFF (map):** R_off / R_on at each loading, on a 0.1 wt% grid below the threshold (`FINE_GRID`); the CSV keeps the 2 wt% grid.
+- **Loop area:** |∮ I dV| over ONE lobe (positive half of the last cycle), trapezoidal rule, time step = period / 4000. Integrating over the whole figure-eight lets the two lobes cancel; the old values (4.4e-8, 3.0e-9, 6.9e-9) were that numerical error.
 - **ON/OFF (drift-diffusion):** effective resistance at 0.01 V divided by that at 1 V, after 1 ms of ion transport.
 
 ## Quick start
@@ -58,8 +58,8 @@ python tests/test_results.py  # checks the data and the numbers above match the 
 
 - Couple the percolation conductivity into the drift-diffusion current.
 - Solve the time-dependent VTEAM equations during a ±2 V, 0.1 V/s sweep to obtain switching voltage.
-- Scale the Strukov time step with frequency and sweep 1-200 Hz.
-- Check the 22 wt% threshold against the literature.
+- ~~Scale the Strukov time step with frequency~~ (done); sweep 1-200 Hz.
+- Check the 22 wt% threshold against the literature: reported rGO–polymer thresholds can be near 0.1 vol% (Stankovich et al., 2006), so the lab series is log-spaced (0, 0.1, 0.25, 0.5, 1, 2, 4, 8, 16 wt%).
 - Run a ±10% sensitivity analysis on every input.
 
 When a model changes, the results table, the figures and `tests/test_results.py` are updated together.

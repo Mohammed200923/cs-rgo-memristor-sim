@@ -5,8 +5,8 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from models.strukov import simulate_iv, compute_loop_area
-from models.vteam import sweep_loading
+from models.strukov import simulate_iv, compute_lobe_area
+from models.vteam import sweep_loading, FINE_GRID
 from models.drift_diffusion import sweep_loading_physics
 from models.synaptic import simulate_ltp_ltd, simulate_ppf, simulate_multilevel
 
@@ -29,52 +29,71 @@ def panel(ax, letter, title):
     ax.set_title(f"({letter}) {title}", loc="left", fontsize=9, color=INK)
 
 
-# Fig. 6 - Strukov model: I-V loops and loop area at 1, 5 and 20 Hz
+# Figs. 6-8 use larger type: they are printed on the 36 x 48 in SAIF poster.
+POSTER = {"font.size": 17, "axes.titlesize": 17, "axes.labelsize": 17, "xtick.labelsize": 15,
+          "ytick.labelsize": 15, "legend.fontsize": 15, "axes.grid": False}
+RED, GREY = "#b2483a", "#6b7b78"
+
+# Fig. 6 - Strukov model: I-V loops and single-lobe area at 1, 5 and 20 Hz
 freqs, colors = [1, 5, 20], [BLUE, ORANGE, AQUA]
-fig, (a, b) = plt.subplots(1, 2, figsize=(7.2, 2.7))
 areas = []
-for f, c in zip(freqs, colors):
-    t, v, i, x, R = simulate_iv(freq=f)
-    areas.append(compute_loop_area(v, i))
-    a.plot(v, i * 1e6, color=c, label=f"{f} Hz")
-a.set_xlabel("Voltage (V)"); a.set_ylabel("Current (µA)"); a.legend(loc="upper left")
-panel(a, "a", "I-V loops")
-for k, (f, c, a_) in enumerate(zip(freqs, colors, areas)):
-    b.plot(k, a_, "o", color=c, ms=8)
-    b.annotate(f"{a_:.1e}", (k, a_), xytext=(10, -3), textcoords="offset points", color=INK, fontsize=8)
-b.set_xticks(range(3), [f"{f} Hz" for f in freqs]); b.set_xlim(-0.5, 2.8)
-b.set_yscale("log"); b.set_ylabel("Loop area (V·A)"); b.grid(axis="x", visible=False)
-panel(b, "b", "Loop area vs drive frequency")
-fig.savefig(os.path.join(OUT, "fig6_strukov.png")); plt.close(fig)
+with plt.rc_context(POSTER):
+    fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4.6), gridspec_kw={"width_ratios": [1.15, 1]})
+    for f, c in zip(freqs, colors):
+        t, v, i, x, R = simulate_iv(freq=f)
+        areas.append(compute_lobe_area(t, v, i, f))
+        m = t >= 1.0 / f  # second cycle (settled loop)
+        a.plot(v[m], i[m] * 1e6, color=c, lw=2.4, label=f"{f} Hz")
+    a.axhline(0, color="#999", lw=.8); a.axvline(0, color="#999", lw=.8)
+    a.set_xlabel("Voltage (V)"); a.set_ylabel("Current (µA)"); a.legend(loc="upper left")
+    a.set_title("(a) I-V loops", loc="left")
+    fs, ar = np.array(freqs), np.array(areas)
+    b.loglog(fs, ar, "o-", color=RED, lw=2.4, ms=10)
+    for f, y in zip(fs, ar):
+        b.annotate(f"{y:.1e}", (f, y), textcoords="offset points", xytext=(10, 6), fontsize=15)
+    b.set_xticks(fs); b.set_xticklabels([f"{f} Hz" for f in freqs]); b.minorticks_off()
+    b.set_xlim(0.7, 40); b.set_ylim(ar.min() / 2, ar.max() * 3)
+    b.set_ylabel("Single-lobe area (V·A)"); b.set_title("(b) Loop area vs frequency", loc="left")
+    b.grid(True, which="major", alpha=.3)
+    fig.tight_layout(); fig.savefig(os.path.join(OUT, "fig6_strukov.png")); plt.close(fig)
 
-# Fig. 7 - VTEAM parameter map: ON/OFF, R_on and R_off vs rGO loading
-vr = sweep_loading(np.arange(0, 25, 2))
-phi = [r["phi"] for r in vr]
-fig, (a, b) = plt.subplots(1, 2, figsize=(7.2, 2.7))
-for ax in (a, b):
-    ax.axvspan(PHI_C, 24.8, color=GRID, alpha=0.7, lw=0)
-    ax.axvline(PHI_C, color=MUTED, lw=1, ls="--")
-    ax.set_xlabel("rGO loading (wt%)"); ax.set_xlim(-0.8, 24.8)
-a.plot(phi, [r["on_off"] for r in vr], color=BLUE, marker="o", ms=4)
-pk = max(vr, key=lambda r: r["on_off"])
-a.annotate(f"max {pk['on_off']:.0f} at {pk['phi']} wt%", (pk["phi"], pk["on_off"]),
-           xytext=(-118, -4), textcoords="offset points", color=INK, fontsize=8)
-a.set_yscale("log"); a.set_ylabel("ON/OFF ratio"); panel(a, "a", "ON/OFF ratio")
-b.plot(phi, [r["R_off"] for r in vr], color=ORANGE, marker="o", ms=4, label="R_off")
-b.plot(phi, [r["R_on"] for r in vr], color=BLUE, marker="o", ms=4, label="R_on")
-b.set_yscale("log"); b.set_ylabel("Resistance (Ω)"); b.legend(loc="lower left", bbox_to_anchor=(0.36, 0.38))
-panel(b, "b", "R_on and R_off")
-fig.savefig(os.path.join(OUT, "fig7_vteam.png")); plt.close(fig)
+# Fig. 7 - Empirical parameter map on a 0.1 wt% grid (2 wt% points shown for comparison)
+fine = sweep_loading(FINE_GRID)
+coarse = [r for r in sweep_loading(np.arange(0, 21, 2))]
+phi_f = [r["phi"] for r in fine]
+with plt.rc_context(POSTER):
+    fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4.6))
+    for ax in (a, b):
+        ax.axvspan(PHI_C, 25, color="#e9e6dc", lw=0); ax.axvline(PHI_C, color=GREY, ls="--", lw=1.6)
+        ax.set_xlim(0, 25); ax.set_xlabel("rGO loading (wt%)")
+    a.semilogy(phi_f, [r["on_off"] for r in fine], color=BLUE, lw=3, label="0.1 wt% grid")
+    a.semilogy([r["phi"] for r in coarse], [r["on_off"] for r in coarse], "o", color=BLUE,
+               mfc="white", ms=8, mew=2, label="2 wt% grid")
+    a.set_ylabel("ON/OFF ratio"); a.set_title("(a) ON/OFF ratio", loc="left"); a.set_ylim(3, 2e4)
+    a.text(23.5, 8e3, "short", fontsize=15, color=GREY, ha="center", rotation=90, va="top")
+    a.annotate("10³ range", (21.3, 2.8e3), xytext=(9.0, 6e3), fontsize=17, color=RED, fontweight="bold",
+               arrowprops=dict(arrowstyle="->", color=RED, lw=2))
+    a.legend(loc="lower right", bbox_to_anchor=(0.86, 0.0))
+    b.semilogy(phi_f, [r["R_off"] for r in fine], color=ORANGE, lw=3, label="R_off")
+    b.semilogy(phi_f, [r["R_on"] for r in fine], color=BLUE, lw=3, label="R_on")
+    b.set_ylabel("Resistance (Ω)"); b.set_title("(b) R_on and R_off", loc="left"); b.legend(loc="center left")
+    for ax in (a, b):
+        ax.grid(True, which="major", alpha=.3)
+    fig.tight_layout(); fig.savefig(os.path.join(OUT, "fig7_vteam.png")); plt.close(fig)
 
-# Fig. 8 - VTEAM parameter map vs drift-diffusion model
-dr = sweep_loading_physics(np.arange(0, 25, 2))
-fig, ax = plt.subplots(figsize=(7.2, 2.5))
-ax.axvline(PHI_C, color=MUTED, lw=1, ls="--")
-ax.plot(phi, [r["on_off"] for r in vr], color=BLUE, marker="o", ms=4, label="VTEAM parameter map")
-ax.plot(phi, [r["on_off"] for r in dr], color=ORANGE, marker="s", ms=4, label="1-D drift-diffusion")
-ax.set_yscale("log"); ax.set_xlabel("rGO loading (wt%)"); ax.set_ylabel("ON/OFF ratio")
-ax.set_xlim(-0.8, 24.8); ax.legend(loc="upper left")
-fig.savefig(os.path.join(OUT, "fig8_models.png")); plt.close(fig)
+# Fig. 8 - Parameter map vs drift-diffusion model
+phi = np.arange(0, 25, 2)
+dr = sweep_loading_physics(phi)
+with plt.rc_context(POSTER):
+    fig, ax = plt.subplots(figsize=(10, 4.4))
+    ax.axvspan(PHI_C, 25, color="#e9e6dc", lw=0); ax.axvline(PHI_C, color=GREY, ls="--", lw=1.6)
+    ax.semilogy(phi_f, [r["on_off"] for r in fine], color=BLUE, lw=3, label="Empirical parameter map")
+    ax.semilogy(phi, [r["on_off"] for r in dr], "s-", color=ORANGE, lw=2.4, ms=8,
+                label="1-D drift-diffusion (ON/OFF = 1)")
+    ax.set_xlim(0, 25); ax.set_ylim(0.5, 2e4)
+    ax.set_xlabel("rGO loading (wt%)"); ax.set_ylabel("ON/OFF ratio")
+    ax.legend(loc="upper left"); ax.grid(True, which="major", alpha=.3)
+    fig.tight_layout(); fig.savefig(os.path.join(OUT, "fig8_models.png")); plt.close(fig)
 
 # Fig. 9 - Synaptic curves (phenomenological, parameters set in models/synaptic.py)
 np.random.seed(0)  # multilevel read noise is random; fixed seed for a reproducible figure
@@ -94,7 +113,8 @@ c.set_xlabel("Read number"); c.set_ylabel("Conductance (a.u.)"); panel(c, "c", "
 fig.tight_layout()
 fig.savefig(os.path.join(OUT, "fig9_synaptic.png")); plt.close(fig)
 
-print(f"Loop areas (V·A): " + ", ".join(f"{f} Hz {a_:.2e}" for f, a_ in zip(freqs, areas)))
-print(f"VTEAM peak: {pk['phi']} wt%, ON/OFF {pk['on_off']:.0f}")
+print(f"Single-lobe areas (V·A): " + ", ".join(f"{f} Hz {a_:.2e}" for f, a_ in zip(freqs, areas)))
+fmax = max(fine, key=lambda r: r["on_off"])
+print(f"Parameter map, 0.1 wt% grid: max ON/OFF {fmax['on_off']:.0f} at {fmax['phi']} wt% (just below the 22 wt% threshold)")
 print(f"Drift-diffusion ON/OFF range: {min(r['on_off'] for r in dr):.2f}-{max(r['on_off'] for r in dr):.2f}")
 print(f"Saved figures to {os.path.abspath(OUT)}")
